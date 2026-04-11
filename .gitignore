@@ -50,3 +50,6 @@ logs/
 coverage/
 htmlcov/
 .turbo/
+
+# Local SQLite databases
+*.db
