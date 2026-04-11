@@ -37,6 +37,7 @@ class Repository(BaseModel, SoftDeleteMixin):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     default_branch: Mapped[str] = mapped_column(String(100), nullable=False, default="main")
     webhook_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    github_hook_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     last_indexed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     team: Mapped["Team"] = relationship(back_populates="repositories")

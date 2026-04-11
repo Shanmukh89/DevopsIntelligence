@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
-
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import BaseModel
 from models.repositories import Repository
 from models.teams import SoftDeleteMixin
-
-if TYPE_CHECKING:
-    pass
 
 
 class PRReview(BaseModel, SoftDeleteMixin):

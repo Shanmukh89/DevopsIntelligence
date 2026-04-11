@@ -12,8 +12,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import BaseModel
 
 if TYPE_CHECKING:
-    from models.repositories import Repository
     from models.costs import CloudCostRecommendation
+    from models.repositories import Repository
 
 
 class SoftDeleteMixin:

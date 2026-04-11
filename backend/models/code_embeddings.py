@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
-
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,9 +11,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import BaseModel
 from models.repositories import Repository
 from models.teams import SoftDeleteMixin
-
-if TYPE_CHECKING:
-    pass
 
 
 class CodeEmbedding(BaseModel, SoftDeleteMixin):

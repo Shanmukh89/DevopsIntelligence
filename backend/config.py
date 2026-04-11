@@ -23,7 +23,7 @@ class BaseAppSettings(BaseSettings):
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
     database_url: str = Field(
-        default="sqlite+aiosqlite:///./dev.db",
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/auditr",
         validation_alias="DATABASE_URL",
     )
 
@@ -40,10 +40,34 @@ class BaseAppSettings(BaseSettings):
         default="redis://localhost:6379/0",
         validation_alias="REDIS_URL",
     )
+    celery_task_always_eager: bool = Field(
+        default=False,
+        validation_alias="CELERY_TASK_ALWAYS_EAGER",
+    )
 
     github_client_id: str = Field(default="", validation_alias="GITHUB_CLIENT_ID")
     github_client_secret: str = Field(default="", validation_alias="GITHUB_CLIENT_SECRET")
     github_webhook_secret: str = Field(default="dev-webhook-secret", validation_alias="GITHUB_WEBHOOK_SECRET")
+    """Fallback HMAC secret when a repository has no per-repo secret (legacy)."""
+
+    fernet_key: str = Field(default="", validation_alias="FERNET_KEY")
+    """URL-safe base64 Fernet key; required in production (see crypto.resolve_fernet_key)."""
+
+    github_oauth_redirect_uri: str = Field(
+        default="http://127.0.0.1:8000/api/auth/github/callback",
+        validation_alias="GITHUB_OAUTH_REDIRECT_URI",
+    )
+    auditr_domain: str = Field(
+        default="http://127.0.0.1:8000",
+        validation_alias="AUDITR_DOMAIN",
+    )
+    """Public origin for this API (no trailing slash); used for GitHub webhook URL."""
+
+    frontend_oauth_success_url: str = Field(
+        default="http://localhost:3000",
+        validation_alias="FRONTEND_OAUTH_SUCCESS_URL",
+    )
+    """Browser redirect target after OAuth (query param `token` carries JWT)."""
 
     jwt_secret_key: str = Field(
         default="change-me-in-production-use-openssl-rand",
@@ -54,6 +78,22 @@ class BaseAppSettings(BaseSettings):
 
     slack_bot_token: str = Field(default="", validation_alias="SLACK_BOT_TOKEN")
     slack_default_channel: str = Field(default="#general", validation_alias="SLACK_DEFAULT_CHANNEL")
+    slack_client_id: str = Field(default="", validation_alias="SLACK_CLIENT_ID")
+    slack_client_secret: str = Field(default="", validation_alias="SLACK_CLIENT_SECRET")
+    slack_signing_secret: str = Field(default="", validation_alias="SLACK_SIGNING_SECRET")
+
+    # Public URLs for links in Slack (API host used for analytics redirect / OAuth callbacks)
+    auditr_dashboard_base_url: str = Field(
+        default="http://localhost:3000",
+        validation_alias="AUDITR_DASHBOARD_URL",
+    )
+    api_public_base_url: str = Field(
+        default="http://localhost:8000",
+        validation_alias="API_PUBLIC_BASE_URL",
+    )
+
+    openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
+    anthropic_api_key: str = Field(default="", validation_alias="ANTHROPIC_API_KEY")
 
     cors_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000",
@@ -69,6 +109,10 @@ class DevSettings(BaseAppSettings):
     """Development defaults."""
 
     environment: Literal["dev"] = "dev"
+    celery_task_always_eager: bool = Field(
+        default=True,
+        validation_alias="CELERY_TASK_ALWAYS_EAGER",
+    )
 
 
 class TestSettings(BaseAppSettings):
@@ -77,6 +121,7 @@ class TestSettings(BaseAppSettings):
     environment: Literal["test"] = "test"
     database_url: str = "sqlite+aiosqlite:///:memory:"
     jwt_secret_key: str = "test-secret-key"
+    celery_task_always_eager: bool = True
 
 
 class ProdSettings(BaseAppSettings):

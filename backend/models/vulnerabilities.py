@@ -30,7 +30,7 @@ class VulnerabilityAlert(BaseModel, SoftDeleteMixin):
     package_name: Mapped[str] = mapped_column(String(255), nullable=False)
     installed_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     patched_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    cve_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    cve_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ghsa_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     severity: Mapped[str | None] = mapped_column(String(20), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
