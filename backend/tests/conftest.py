@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import os
+
+# Must run before any `database` / `config` import so the test engine URL is used.
+os.environ.setdefault("ENVIRONMENT", "test")
+
 import uuid
 
 import pytest

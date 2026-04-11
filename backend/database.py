@@ -5,8 +5,9 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 
 from sqlalchemy import DateTime, MetaData, Uuid, create_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from config import get_settings
 
@@ -72,10 +73,14 @@ SessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
+_async_kw: dict = {"echo": _settings.environment == "dev", "future": True}
+if _settings.database_url.startswith("sqlite+aiosqlite") and ":memory:" in _settings.database_url:
+    _async_kw["connect_args"] = {"check_same_thread": False}
+    _async_kw["poolclass"] = StaticPool
+
 engine = create_async_engine(
     _settings.database_url,
-    echo=_settings.environment == "dev",
-    future=True,
+    **_async_kw,
 )
 async_session_factory = async_sessionmaker(
     engine,

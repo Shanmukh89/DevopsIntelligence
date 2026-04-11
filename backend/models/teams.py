@@ -14,6 +14,7 @@ from database import BaseModel
 if TYPE_CHECKING:
     from models.costs import CloudCostRecommendation
     from models.repositories import Repository
+    from models.user import User
 
 
 class SoftDeleteMixin:
@@ -38,6 +39,11 @@ class Team(BaseModel, SoftDeleteMixin):
         cascade="all, delete-orphan",
     )
     repositories: Mapped[list["Repository"]] = relationship(
+        back_populates="team",
+        cascade="all, delete-orphan",
+    )
+    users: Mapped[list["User"]] = relationship(
+        "User",
         back_populates="team",
         cascade="all, delete-orphan",
     )

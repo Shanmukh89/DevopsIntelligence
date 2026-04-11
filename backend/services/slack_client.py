@@ -70,8 +70,8 @@ class SlackClient:
     ) -> dict[str, Any] | None:
         ch = channels or self._settings.slack_default_channel
         return self._safe_call(
-            "files_upload_v2",
-            channel=ch,
+            "files_upload",
+            channels=ch,
             content=content,
             filename=filename,
             title=title,

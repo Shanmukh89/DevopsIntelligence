@@ -1,26 +1,41 @@
-"""Authentication: GitHub OAuth, JWT verification, logout, request context."""
+"""Authentication: GitHub OAuth, JWT, logout, /me."""
 
 from __future__ import annotations
 
 import logging
-from contextvars import ContextVar
+import secrets
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
-from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import BaseAppSettings, get_settings
-from deps import get_settings_dep
+from auth_core import (
+    create_access_token,
+    decode_token,
+    get_current_user,
+    get_current_user_optional,
+    get_settings_dep,
+)
+from config import BaseAppSettings
+from deps import fernet_key_from_settings, get_db
+from models.github_credentials import GitHubCredential
+from models.teams import Team
+from models.user import User
+from services.github_auth import (
+    exchange_code_for_token,
+    fetch_github_user,
+    github_authorize_url,
+    parse_scope_string,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-# Request-scoped auth context (set by JWT middleware / dependencies)
-auth_context: ContextVar[dict[str, Any] | None] = ContextVar("auth_context", default=None)
 
 
 class GitHubCallbackBody(BaseModel):
@@ -33,151 +48,177 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-def create_access_token(
-    subject: str,
+class MeResponse(BaseModel):
+    user_id: str
+    team_id: str
+    github_login: str
+    github_id: int
+
+
+def _oauth_state_token(settings: BaseAppSettings) -> str:
+    exp = datetime.now(tz=UTC) + timedelta(minutes=10)
+    return jwt.encode(
+        {
+            "typ": "gh_oauth_state",
+            "nonce": secrets.token_hex(16),
+            "exp": int(exp.timestamp()),
+        },
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def _verify_oauth_state(state: str, settings: BaseAppSettings) -> None:
+    try:
+        payload = jwt.decode(state, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    except JWTError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state") from e
+    if payload.get("typ") != "gh_oauth_state":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state")
+
+
+@router.get("/github/login")
+async def github_login(
+    settings: Annotated[BaseAppSettings, Depends(get_settings_dep)],
+    next: str | None = Query(None, alias="next"),
+) -> RedirectResponse:
+    """Redirect browser to GitHub OAuth authorize URL."""
+    try:
+        state = _oauth_state_token(settings)
+        url = github_authorize_url(settings=settings, state=state)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
+    if next:
+        # Store next in state is not done here — frontend should pass next in callback query if needed
+        pass
+    return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+
+
+async def _complete_oauth(
     *,
-    settings: BaseAppSettings,
-    extra_claims: dict[str, Any] | None = None,
-) -> str:
-    from datetime import UTC, datetime, timedelta
-
-    expire = datetime.now(tz=UTC) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload: dict[str, Any] = {
-        "sub": subject,
-        "exp": int(expire.timestamp()),
-    }
-    if extra_claims:
-        payload.update(extra_claims)
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
-
-
-def decode_token(token: str, settings: BaseAppSettings) -> dict[str, Any]:
-    return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-
-
-async def _exchange_github_code(
     code: str,
     redirect_uri: str,
     settings: BaseAppSettings,
-) -> tuple[str, dict[str, Any]]:
-    if not settings.github_client_id or not settings.github_client_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="GitHub OAuth is not configured",
-        )
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        token_res = await client.post(
-            "https://github.com/login/oauth/access_token",
-            headers={
-                "Accept": "application/json",
-            },
-            data={
-                "client_id": settings.github_client_id,
-                "client_secret": settings.github_client_secret,
-                "code": code,
-                "redirect_uri": redirect_uri,
-            },
-        )
-        token_res.raise_for_status()
-        token_json = token_res.json()
-        access_token = token_json.get("access_token")
-        if not access_token:
-            logger.warning("GitHub token response missing access_token: %s", token_json)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="GitHub did not return an access token",
-            )
-        user_res = await client.get(
-            "https://api.github.com/user",
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Accept": "application/vnd.github+json",
-            },
-        )
-        user_res.raise_for_status()
-        user = user_res.json()
-        return access_token, user
-
-
-@router.post("/github/callback", response_model=TokenResponse)
-async def github_oauth_callback(
-    body: GitHubCallbackBody,
-    settings: Annotated[BaseAppSettings, Depends(get_settings_dep)],
+    db: AsyncSession,
 ) -> TokenResponse:
-    """Exchange GitHub OAuth code and return our JWT for API access."""
-    _, gh_user = await _exchange_github_code(body.code, body.redirect_uri, settings)
-    sub = str(gh_user.get("id", ""))
-    login = gh_user.get("login", "")
+    try:
+        token_json = await exchange_code_for_token(code=code, redirect_uri=redirect_uri, settings=settings)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("github_oauth_exchange_failed")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="OAuth exchange failed") from e
+
+    access_token = token_json["access_token"]
+    scopes = parse_scope_string(token_json.get("scope"))
+
+    gh_user = await fetch_github_user(access_token)
+    github_id = int(gh_user["id"])
+    login = str(gh_user.get("login") or "")
+
+    key = fernet_key_from_settings(settings)
+
+    result = await db.execute(select(User).where(User.github_id == github_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        team = Team(name=f"{login}'s workspace")
+        db.add(team)
+        await db.flush()
+        user = User(github_id=github_id, login=login, team_id=team.id)
+        db.add(user)
+        await db.flush()
+    else:
+        user.login = login
+
+    enc = GitHubCredential.encrypt_access_token(access_token, fernet_key=key)
+    r2 = await db.execute(select(GitHubCredential).where(GitHubCredential.user_id == user.id))
+    cred = r2.scalar_one_or_none()
+    if cred:
+        cred.access_token_encrypted = enc
+        cred.team_id = user.team_id
+        cred.scopes = scopes
+    else:
+        cred = GitHubCredential(
+            team_id=user.team_id,
+            user_id=user.id,
+            access_token_encrypted=enc,
+            installation_id=None,
+            expires_at=None,
+            scopes=scopes,
+        )
+        db.add(cred)
+
+    await db.flush()
     jwt_token = create_access_token(
-        sub,
+        str(user.id),
         settings=settings,
-        extra_claims={"login": login, "github": True},
+        extra_claims={
+            "login": login,
+            "github_id": github_id,
+            "team_id": str(user.team_id),
+            "github": True,
+        },
     )
     logger.info("github_oauth_success login=%s", login)
     return TokenResponse(access_token=jwt_token)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout() -> None:
+@router.get("/github/callback", response_model=TokenResponse)
+async def github_oauth_callback_get(
+    settings: Annotated[BaseAppSettings, Depends(get_settings_dep)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    code: str = Query(...),
+    state: str = Query(...),
+) -> TokenResponse:
+    _verify_oauth_state(state, settings)
+    redirect_uri = settings.github_oauth_redirect_uri
+    return await _complete_oauth(code=code, redirect_uri=redirect_uri, settings=settings, db=db)
+
+
+@router.post("/github/callback", response_model=TokenResponse)
+async def github_oauth_callback_post(
+    body: GitHubCallbackBody,
+    settings: Annotated[BaseAppSettings, Depends(get_settings_dep)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TokenResponse:
+    """Legacy: exchange code without signed state (use GET callback in production)."""
+    return await _complete_oauth(
+        code=body.code,
+        redirect_uri=body.redirect_uri,
+        settings=settings,
+        db=db,
+    )
+
+
+@router.post("/logout")
+async def logout() -> Response:
     """Client should discard JWT; server is stateless unless a denylist is added."""
-    auth_context.set(None)
     logger.info("logout_requested")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-def get_token_from_request(request: Request) -> str | None:
-    auth = request.headers.get("authorization")
-    if auth and auth.lower().startswith("bearer "):
-        return auth[7:].strip()
-    return None
-
-
-async def get_current_user(
+@router.get("/me", response_model=MeResponse)
+async def me(
     request: Request,
     settings: Annotated[BaseAppSettings, Depends(get_settings_dep)],
-) -> dict[str, Any]:
-    """Require a valid JWT (use as Depends)."""
-    token = get_token_from_request(request)
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MeResponse:
+    payload = await get_current_user(request, settings)
+    sub = payload.get("sub")
     try:
-        payload = decode_token(token, settings)
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
-    auth_context.set(payload)
-    return payload
+        from uuid import UUID
 
-
-async def get_current_user_optional(
-    request: Request,
-    settings: Annotated[BaseAppSettings, Depends(get_settings_dep)],
-) -> dict[str, Any] | None:
-    """Optional JWT — returns None if missing or invalid."""
-    token = get_token_from_request(request)
-    if not token:
-        return None
-    try:
-        payload = decode_token(token, settings)
-    except JWTError:
-        return None
-    auth_context.set(payload)
-    return payload
-
-
-class JWTAuthMiddleware(BaseHTTPMiddleware):
-    """Populate request.state.user and auth_context from Bearer JWT when present."""
-
-    async def dispatch(self, request: Request, call_next):
-        settings = get_settings()
-        token = get_token_from_request(request)
-        if token:
-            try:
-                payload = decode_token(token, settings)
-                request.state.user = payload
-                auth_context.set(payload)
-            except JWTError:
-                request.state.user = None
-                auth_context.set(None)
-        else:
-            request.state.user = None
-            auth_context.set(None)
-        return await call_next(request)
+        uid = UUID(str(sub))
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from e
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return MeResponse(
+        user_id=str(user.id),
+        team_id=str(user.team_id),
+        github_login=user.login,
+        github_id=user.github_id,
+    )

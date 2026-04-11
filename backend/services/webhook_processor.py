@@ -86,19 +86,27 @@ async def process_push(payload: dict[str, Any]) -> None:
     logger.info("scheduled_push_task")
 
 
-def dispatch_github_event(event_type: str, payload: dict[str, Any]) -> str | None:
-    """
-    Route GitHub event to the appropriate Celery task.
-    Returns a short note for logging / DB (task name or skip reason).
-    """
+def preview_dispatch_note(event_type: str, payload: dict[str, Any]) -> str | None:
+    """Return the planned dispatch label before enqueue (for DB / logs)."""
+    action = payload.get("action")
+    if event_type == "pull_request" and action == "opened":
+        return "queued:pull_request_opened"
+    if event_type == "workflow_run" and action == "completed":
+        return "queued:workflow_run_completed"
+    if event_type == "push":
+        return "queued:push"
+    return None
+
+
+def enqueue_github_event(event_type: str, payload: dict[str, Any]) -> None:
+    """Enqueue Celery tasks (blocking sync — run via asyncio.to_thread from routes)."""
     action = payload.get("action")
     if event_type == "pull_request" and action == "opened":
         process_pull_request_opened_task.delay(payload)
-        return "queued:pull_request_opened"
+        return
     if event_type == "workflow_run" and action == "completed":
         process_workflow_run_completed_task.delay(payload)
-        return "queued:workflow_run_completed"
+        return
     if event_type == "push":
         process_push_task.delay(payload)
-        return "queued:push"
-    return None
+        return

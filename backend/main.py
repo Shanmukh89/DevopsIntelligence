@@ -11,18 +11,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from auth_core import JWTAuthMiddleware
 from config import get_settings
+from database import Base, engine
 from logging_config import setup_logging
 from middleware.http import RequestLoggingMiddleware
-from routers import auth, webhooks
+import models  # noqa: F401 — register ORM mappers
+from routers import auth, integrations, repositories, webhooks
 
 logger = logging.getLogger(__name__)
 
 
+async def _init_db() -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Log application lifecycle; config is validated at import via get_settings()."""
+    """Create tables on startup; log lifecycle."""
     settings = get_settings()
+    await _init_db()
     logger.info(
         "startup_complete",
         extra={"environment": settings.environment, "action_taken": "app_ready"},
@@ -49,9 +58,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestLoggingMiddleware)
-    app.add_middleware(auth.JWTAuthMiddleware)
+    app.add_middleware(JWTAuthMiddleware)
 
     app.include_router(auth.router)
+    app.include_router(integrations.router)
+    app.include_router(repositories.router)
     app.include_router(webhooks.router)
 
     @app.exception_handler(StarletteHTTPException)
@@ -63,9 +74,10 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        body = getattr(exc, "body", None)
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"detail": exc.errors(), "body": exc.body},
+            content={"detail": exc.errors(), **({"body": body} if body is not None else {})},
         )
 
     @app.exception_handler(Exception)
