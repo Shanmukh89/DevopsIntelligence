@@ -36,6 +36,7 @@ class BaseAppSettings(BaseSettings):
         if v.startswith("postgresql://") and "+asyncpg" not in v and "+psycopg" not in v:
             return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
+
     redis_url: str = Field(
         default="redis://localhost:6379/0",
         validation_alias="REDIS_URL",
@@ -48,10 +49,8 @@ class BaseAppSettings(BaseSettings):
     github_client_id: str = Field(default="", validation_alias="GITHUB_CLIENT_ID")
     github_client_secret: str = Field(default="", validation_alias="GITHUB_CLIENT_SECRET")
     github_webhook_secret: str = Field(default="dev-webhook-secret", validation_alias="GITHUB_WEBHOOK_SECRET")
-    """Fallback HMAC secret when a repository has no per-repo secret (legacy)."""
 
     fernet_key: str = Field(default="", validation_alias="FERNET_KEY")
-    """URL-safe base64 Fernet key; required in production (see crypto.resolve_fernet_key)."""
 
     github_oauth_redirect_uri: str = Field(
         default="http://127.0.0.1:8000/api/auth/github/callback",
@@ -61,13 +60,11 @@ class BaseAppSettings(BaseSettings):
         default="http://127.0.0.1:8000",
         validation_alias="AUDITR_DOMAIN",
     )
-    """Public origin for this API (no trailing slash); used for GitHub webhook URL."""
 
     frontend_oauth_success_url: str = Field(
         default="http://localhost:3000",
         validation_alias="FRONTEND_OAUTH_SUCCESS_URL",
     )
-    """Browser redirect target after OAuth (query param `token` carries JWT)."""
 
     jwt_secret_key: str = Field(
         default="change-me-in-production-use-openssl-rand",
@@ -82,7 +79,6 @@ class BaseAppSettings(BaseSettings):
     slack_client_secret: str = Field(default="", validation_alias="SLACK_CLIENT_SECRET")
     slack_signing_secret: str = Field(default="", validation_alias="SLACK_SIGNING_SECRET")
 
-    # Public URLs for links in Slack (API host used for analytics redirect / OAuth callbacks)
     auditr_dashboard_base_url: str = Field(
         default="http://localhost:3000",
         validation_alias="AUDITR_DASHBOARD_URL",
@@ -154,3 +150,9 @@ def get_settings() -> BaseAppSettings:
 def clear_settings_cache() -> None:
     """Clear settings cache (for tests)."""
     get_settings.cache_clear()
+    try:
+        from config.llm_config import clear_llm_config_cache
+
+        clear_llm_config_cache()
+    except ImportError:
+        pass

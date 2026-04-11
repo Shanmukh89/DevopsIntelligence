@@ -1,5 +1,6 @@
 """SQLAlchemy models — import order matters for mapper configuration."""
 
+from models.github_credentials import GitHubCredential
 from models.teams import Team, TeamAPIKey, TeamMember
 from models.repositories import Repository, RepositoryConfig
 from models.builds import Build, BuildLog
@@ -11,6 +12,7 @@ from models.documentation import GeneratedDocumentation
 from models.pr_reviews import PRIssue, PRReview
 from models.vulnerabilities import VulnerabilityAlert
 from models.slack_integration import SlackAlertDismissal, SlackIntegration, SlackNotificationThread
+from models.user import User
 from models.webhook_event import WebhookEvent
 
 __all__ = [
@@ -21,6 +23,7 @@ __all__ = [
     "CodeClone",
     "CodeEmbedding",
     "GeneratedDocumentation",
+    "GitHubCredential",
     "PRIssue",
     "PRReview",
     "Repository",
@@ -31,6 +34,7 @@ __all__ = [
     "Team",
     "TeamAPIKey",
     "TeamMember",
+    "User",
     "VulnerabilityAlert",
     "WebhookEvent",
 ]
