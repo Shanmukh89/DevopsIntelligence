@@ -16,6 +16,7 @@ from crypto import resolve_fernet_key
 from database import get_db_session
 from models import GitHubCredential, User
 from auth_core import get_current_user
+from services.github_auth import refresh_stored_github_access_token
 from services.github_client import GitHubClient
 
 # Database session dependency (use `Depends(get_db)` in routes)
@@ -87,7 +88,16 @@ async def get_github_client_for_user(
 
     key = fernet_key_from_settings(settings)
     token = cred.plaintext_token(fernet_key=key)
-    return GitHubClient(settings, token=token, redis_client=redis_client)
+
+    async def _on_unauthorized() -> str | None:
+        return await refresh_stored_github_access_token(db=db, user=user, settings=settings, fernet_key=key)
+
+    return GitHubClient(
+        settings,
+        token=token,
+        redis_client=redis_client,
+        on_unauthorized=_on_unauthorized,
+    )
 
 
 async def get_current_db_user(

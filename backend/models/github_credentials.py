@@ -37,6 +37,7 @@ class GitHubCredential(BaseModel):
         index=True,
     )
     access_token_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    refresh_token_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     installation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     scopes: Mapped[str | None] = mapped_column(Text, nullable=True)

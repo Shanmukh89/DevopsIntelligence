@@ -94,9 +94,10 @@ def schedule_rate_limited_retry(
     args: list[Any] | None = None,
     kwargs: dict[str, Any] | None = None,
     response: httpx.Response | None = None,
+    attempt: int = 0,
 ) -> None:
-    """Queue a retry on the generic retry task with exponential-ish delay."""
-    delay = 60
+    """Queue a retry on the generic retry task using Retry-After, reset time, or exponential backoff."""
+    delay = int(compute_backoff_seconds(attempt, base=30.0, cap=3600.0))
     if response is not None:
         ra = response.headers.get("Retry-After")
         if ra and ra.isdigit():

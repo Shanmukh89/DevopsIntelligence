@@ -49,3 +49,36 @@ async def fetch_all_pages_json(
                 return items
         url = parse_next_url(resp.headers.get("link"))
     return items
+
+
+async def fetch_all_pages_numeric(
+    fetch_page: Callable[[str], Awaitable[httpx.Response]],
+    path_template: str,
+    *,
+    per_page: int = 100,
+    max_pages: int = 500,
+    max_items: int | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Page-number pagination (`?page=1&per_page=...`) until an empty page or last page.
+    `path_template` must contain `{page}` (e.g. `/repos/o/r/issues?page={page}&per_page={per_page}`).
+    """
+    items: list[dict[str, Any]] = []
+    for page in range(1, max_pages + 1):
+        url = path_template.format(page=page, per_page=per_page)
+        resp = await fetch_page(url)
+        if resp.status_code == 404:
+            logger.info("github_pagination_numeric_404", extra={"page": page})
+            break
+        resp.raise_for_status()
+        chunk = resp.json()
+        if not isinstance(chunk, list):
+            logger.warning("github_pagination_numeric_expected_array")
+            break
+        if not chunk:
+            break
+        for row in chunk:
+            items.append(row)
+            if max_items is not None and len(items) >= max_items:
+                return items
+    return items

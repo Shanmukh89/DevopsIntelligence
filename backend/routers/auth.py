@@ -132,19 +132,32 @@ async def _complete_oauth(
         user.login = login
 
     enc = GitHubCredential.encrypt_access_token(access_token, fernet_key=key)
+    refresh_raw = token_json.get("refresh_token")
+    refresh_enc = (
+        GitHubCredential.encrypt_access_token(str(refresh_raw), fernet_key=key) if refresh_raw else None
+    )
+    expires_at = None
+    if token_json.get("expires_in") is not None:
+        try:
+            expires_at = datetime.now(tz=UTC) + timedelta(seconds=int(token_json["expires_in"]))
+        except (TypeError, ValueError):
+            expires_at = None
     r2 = await db.execute(select(GitHubCredential).where(GitHubCredential.user_id == user.id))
     cred = r2.scalar_one_or_none()
     if cred:
         cred.access_token_encrypted = enc
+        cred.refresh_token_encrypted = refresh_enc
         cred.team_id = user.team_id
         cred.scopes = scopes
+        cred.expires_at = expires_at
     else:
         cred = GitHubCredential(
             team_id=user.team_id,
             user_id=user.id,
             access_token_encrypted=enc,
+            refresh_token_encrypted=refresh_enc,
             installation_id=None,
-            expires_at=None,
+            expires_at=expires_at,
             scopes=scopes,
         )
         db.add(cred)

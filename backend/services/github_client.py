@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import quote
 
@@ -39,11 +40,13 @@ class GitHubClient:
         token: str | None = None,
         *,
         redis_client: redis.Redis | None = None,
+        on_unauthorized: Callable[[], Awaitable[str | None]] | None = None,
     ) -> None:
         self._settings = settings
         self._token = token
         self._base = "https://api.github.com"
         self._redis = redis_client
+        self._on_unauthorized = on_unauthorized
 
     def _cache_key(self, method: str, path: str, params: dict[str, Any] | None) -> str:
         h = hashlib.sha256()
@@ -111,6 +114,7 @@ class GitHubClient:
         await self._maybe_sleep_rate_limit()
         delay = 1.0
         last_exc: Exception | None = None
+        unauthorized_retried = False
         async with httpx.AsyncClient(timeout=120.0) as client:
             for attempt in range(max_retries):
                 try:
@@ -126,6 +130,12 @@ class GitHubClient:
 
                     if resp.status_code == 401:
                         logger.warning("github_api_unauthorized")
+                        if self._on_unauthorized and not unauthorized_retried:
+                            new_tok = await self._on_unauthorized()
+                            if new_tok:
+                                self._token = new_tok
+                                unauthorized_retried = True
+                                continue
                         return resp
 
                     if resp.status_code == 403:
