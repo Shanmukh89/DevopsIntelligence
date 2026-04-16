@@ -1,4 +1,4 @@
-# Auditr (DevopsIntelligence)
+# Auditr 
 
 An AI-powered DevOps intelligence platform that deeply understands your repositories.
 
@@ -6,7 +6,7 @@ Auditr is a full-stack application that connects to your GitHub repositories, bu
 
 ## Live Demo
 
-[View Live Application](https://devops-intelligence.vercel.app/) *(Replace URL after deployment)*
+[View Live Application](https://devops-intelligence.vercel.app/) 
 
 ## Table of Contents
 
