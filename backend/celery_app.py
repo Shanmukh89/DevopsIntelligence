@@ -9,10 +9,20 @@ from app.core.config import settings
 # Use the URL from settings, and append /1 for the results backend
 base_redis_url = settings.REDIS_URL.rsplit('/', 1)[0] if '/' in settings.REDIS_URL[9:] else settings.REDIS_URL
 
+broker_url = settings.REDIS_URL
+backend_url = f"{base_redis_url}/1"
+
+# Fix for Upstash rediss:// URLs which require ssl_cert_reqs parameter
+if broker_url.startswith("rediss://") and "ssl_cert_reqs" not in broker_url:
+    broker_url += "&ssl_cert_reqs=CERT_NONE" if "?" in broker_url else "?ssl_cert_reqs=CERT_NONE"
+
+if backend_url.startswith("rediss://") and "ssl_cert_reqs" not in backend_url:
+    backend_url += "&ssl_cert_reqs=CERT_NONE" if "?" in backend_url else "?ssl_cert_reqs=CERT_NONE"
+
 celery_app = Celery(
     "auditr",
-    broker=settings.REDIS_URL,
-    backend=f"{base_redis_url}/1",
+    broker=broker_url,
+    backend=backend_url,
 )
 
 celery_app.conf.update(
