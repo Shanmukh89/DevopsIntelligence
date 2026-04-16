@@ -15,5 +15,9 @@ COPY . .
 # Expose the API port
 EXPOSE 8000
 
-# Start FastAPI server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Copy the start script and make it executable
+COPY start.sh .
+RUN chmod +x start.sh
+
+# Start FastAPI server AND Celery worker together!
+CMD ["bash", "start.sh"]
