@@ -1,0 +1,262 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Auditr Design System ─── */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+
+  /* shadcn mappings */
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ─── Auditr dark-first color system (design-requirement.md §3) ─── */
+:root {
+  /* Background Scale */
+  --bg-base: #0A0B0D;
+  --bg-raised: #111318;
+  --bg-overlay: #181C23;
+  --bg-subtle: #1E2330;
+
+  /* Border Scale */
+  --border-subtle: #232940;
+  --border-default: #2E3650;
+  --border-strong: #3D4A6B;
+
+  /* Text Scale */
+  --text-primary: #E8EAF0;
+  --text-secondary: #8A92A8;
+  --text-muted: #525C75;
+  --text-inverse: #0A0B0D;
+
+  /* Accent — Electric Blue */
+  --accent-500: #3B82F6;
+  --accent-400: #60A5FA;
+  --accent-600: #2563EB;
+  --accent-glow: rgba(59, 130, 246, 0.15);
+
+  /* Semantic — Status */
+  --critical: #EF4444;
+  --high: #F97316;
+  --warning: #F59E0B;
+  --success: #22C55E;
+  --info: #3B82F6;
+  --neutral: #525C75;
+
+  /* shadcn variable mapping → Auditr dark theme */
+  --background: #0A0B0D;
+  --foreground: #E8EAF0;
+  --card: #111318;
+  --card-foreground: #E8EAF0;
+  --popover: #181C23;
+  --popover-foreground: #E8EAF0;
+  --primary: #3B82F6;
+  --primary-foreground: #ffffff;
+  --secondary: #1E2330;
+  --secondary-foreground: #E8EAF0;
+  --muted: #1E2330;
+  --muted-foreground: #8A92A8;
+  --accent: #1E2330;
+  --accent-foreground: #E8EAF0;
+  --destructive: #EF4444;
+  --border: #2E3650;
+  --input: #2E3650;
+  --ring: #3B82F6;
+  --radius: 0.375rem;
+
+  /* Chart colors */
+  --chart-1: #3B82F6;
+  --chart-2: #22C55E;
+  --chart-3: #F59E0B;
+  --chart-4: #EF4444;
+  --chart-5: #8B5CF6;
+
+  /* Sidebar */
+  --sidebar: #0A0B0D;
+  --sidebar-foreground: #8A92A8;
+  --sidebar-primary: #3B82F6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1E2330;
+  --sidebar-accent-foreground: #E8EAF0;
+  --sidebar-border: #232940;
+  --sidebar-ring: #3B82F6;
+
+  /* Typography Scale (design-requirement.md §4.2) */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2.125rem;
+
+  /* Spacing Scale (design-requirement.md §5.2) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Animation (design-requirement.md §8.1) */
+  --ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+}
+
+/* ─── Base Styles ─── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background-color: var(--bg-base);
+    background-image: 
+      radial-gradient(ellipse at top, rgba(59, 130, 246, 0.05) 0%, transparent 60%),
+      radial-gradient(ellipse at bottom, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--border-default);
+  }
+}
+
+/* ─── Skeleton shimmer ─── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-raised) 25%,
+    var(--bg-overlay) 50%,
+    var(--bg-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* ─── Pulse ring for active build status ─── */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* ─── Cursor blink for chat streaming ─── */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink::after {
+  content: "▌";
+  animation: cursor-blink 1.06s step-end infinite;
+  color: var(--accent-500);
+}
+
+/* ─── Reduced motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .skeleton {
+    animation: none;
+    background: var(--bg-overlay);
+  }
+}
+
+/* ─── Mobile gate (design-requirement.md §11) ─── */
+.mobile-gate {
+  display: none;
+}
+@media (max-width: 767px) {
+  .mobile-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg-base);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+}

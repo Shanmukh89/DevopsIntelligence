@@ -1,0 +1,47 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+export const metadata: Metadata = {
+  title: "Auditr — Automated DevOps Intelligence Platform",
+  description:
+    "AI-powered platform that watches your codebase, builds, security, database, and cloud — so your team ships with confidence.",
+  keywords: "devops, AI, code review, security scanning, cloud optimization",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${jetbrainsMono.variable} h-full antialiased`}
+    >
+      <body
+        className="min-h-full"
+        style={{ backgroundColor: "var(--bg-base)", margin: 0 }}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
