@@ -14,12 +14,16 @@ def get_github_installation_client(installation_id: int):
     """
     Returns an authenticated Github client for a specific installation.
     """
-    if not settings.GITHUB_APP_ID or not settings.GITHUB_APP_PRIVATE_KEY_PATH:
+    if not settings.GITHUB_APP_ID or (not settings.GITHUB_APP_PRIVATE_KEY and not settings.GITHUB_APP_PRIVATE_KEY_PATH):
         return Github(settings.GITHUB_TOKEN) # Fallback to personal token if app not configured
         
     try:
-        with open(settings.GITHUB_APP_PRIVATE_KEY_PATH, 'r') as f:
-            private_key = f.read()
+        if settings.GITHUB_APP_PRIVATE_KEY:
+            private_key = settings.GITHUB_APP_PRIVATE_KEY
+        else:
+            with open(settings.GITHUB_APP_PRIVATE_KEY_PATH, 'r') as f:
+                private_key = f.read()
+                
         integration = GithubIntegration(
             integration_id=int(settings.GITHUB_APP_ID),
             private_key=private_key
