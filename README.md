@@ -4,6 +4,10 @@ An AI-powered DevOps intelligence platform that deeply understands your reposito
 
 Auditr is a full-stack application that connects to your GitHub repositories, builds an intelligent code review graph, and serves as an AI-powered engineering assistant. It is designed for developers and engineering teams who need instant codebase Q&A, automated pull request reviews, code clone detection, and cloud cost estimations.
 
+## Live Demo
+
+[View Live Application](https://devops-intelligence.vercel.app/) *(Replace URL after deployment)*
+
 ## Table of Contents
 
 - [Features](#features)
@@ -63,7 +67,6 @@ DevopsIntelligence/
 │   │   └── services/          # Business logic (Slack, AI, Cloud Costs)
 │   ├── celery_app.py          # Celery worker definitions
 │   ├── requirements.txt       # Python dependencies
-│   ├── Dockerfile             # Backend container configuration
 │   └── .env                   # Local backend secrets
 ├── frontend/
 │   ├── src/
@@ -71,12 +74,9 @@ DevopsIntelligence/
 │   │   ├── components/        # Reusable UI primitives and layouts
 │   │   └── lib/               # Supabase clients and utility functions
 │   ├── package.json           # Frontend dependencies
-│   ├── Dockerfile             # Frontend container configuration
 │   └── .env.local             # Local frontend secrets
 ├── docs/                      # PRD and Design Requirement documents
-├── docker-compose.yml         # Full infrastructure stack orchestration
-├── supabase_schema.sql        # Unified PostgreSQL schema and RLS policies
-└── .env                       # Root environment variables for Docker Compose
+└── supabase_schema.sql        # Unified PostgreSQL schema and RLS policies
 ```
 
 ## System Architecture
@@ -122,7 +122,6 @@ User opens Dashboard
 |---|---|
 | Node.js | Version 20 or higher |
 | Python | Version 3.10 or higher |
-| Docker | Docker Desktop required to run the full stack |
 | Supabase | A project with the pgvector extension enabled |
 | OpenAI API Key | Access to embedding and generation models |
 
@@ -153,46 +152,62 @@ Ensure you have a `.env` file at the root of the project to feed credentials to 
 
 ## Running the Application
 
-The fastest and most consistent way to run the entire Auditr stack (Frontend, Backend, Postgres, Redis, ClickHouse, and Jaeger) is via Docker Compose.
+## Running the Application Locally
 
-**Run Everything:**
-```bash
-docker-compose up --build
-```
-- **Frontend Dashboard**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **Jaeger Tracing**: http://localhost:16686
+Since infrastructure components are handled via cloud providers, you can run the core components directly on your system without Docker.
 
-### Alternative: Local Development Mode (Hot-Reload)
-If you prefer running the servers natively to get instant code hot-reloading:
-
-1. **Start Background Infrastructure (Docker):**
-```bash
-docker-compose up -d postgres redis clickhouse
-```
-
-2. **Start Backend (Python):**
+**1. Start Backend (Python):**
+To launch the FastAPI service handling AI generation and routing:
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate
+# On Windows: venv\Scripts\activate
+# On Mac/Linux: source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-3. **Start Frontend (Next.js):**
+**2. Start Celery Worker (Background Thread):**
+If you need to process AI queues locally, run this in a second terminal inside the backend folder:
+```bash
+cd backend
+# Activate virtual environment again
+celery -A celery_app worker
+```
+
+**3. Start Frontend (Next.js):**
+In a third terminal window:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
+The frontend will be accessible at http://localhost:3000, connecting locally to your Python backend running at http://localhost:8000.
+
 ## Deployment
 
-**Frontend:** Deploy the `frontend/` directory to Vercel or Netlify. Make sure to define the `NEXT_PUBLIC_API_URL` environment variable to point to your live backend.
+This project can be deployed entirely for **$0/month** by decoupling the services across generous free tiers:
 
-**Backend & Workers:** Deploy the `backend/` directory to Render, Railway, or AWS ECS. You will need two separate processes running:
-1. Web Service running `uvicorn app.main:app`
-2. Background Worker running `celery -A celery_app worker`
+**1. Database & Cache:**
+- **PostgreSQL**: Create a free project on [Supabase](https://supabase.com) (Includes `pgvector` natively).
+- **Redis**: Create a free Serverless Redis instance on [Upstash](https://upstash.com) (10k requests/day).
 
-**Databases:** Use hosted Supabase for PostgreSQL/Auth. Use Upstash or a similar managed provider for Redis, and a managed service or dedicated container deployment for ClickHouse.
+**2. Frontend:**
+- Deploy the `frontend/` directory to **Vercel** (100% Free). 
+- **Important**: Set `NEXT_PUBLIC_API_URL` to point to your live backend URL in Vercel's Environment Variables.
+
+**3. Backend & Background Worker:**
+- Deploy the `backend/` directory to **Fly.io** or **Koyeb** (Generous free tiers).
+- You will need to spin up two separate processes:
+  1. Web Service: `uvicorn app.main:app`
+  2. Celery Worker: `celery -A celery_app worker`
+- Feed the `DATABASE_URL` (from Supabase) and `REDIS_URL` (from Upstash) into their environment variables.
+
+*(Note: ClickHouse and Jaeger tracing are excluded in this free-tier deployment strategy to eliminate costs).*
+
+### Updating the GitHub App (No more ngrok!)
+When testing locally, you had to use `ngrok` to expose your local PC to GitHub. In production, you **no longer need ngrok**. 
+
+Once your backend is deployed live, go to your GitHub App Settings at `github.com` and update your **Webhook URL** to point to your live backend domain:
+`https://<your-live-backend-url>/api/github/webhook`
