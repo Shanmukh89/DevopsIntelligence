@@ -220,9 +220,10 @@ def _clone_and_index_github_repo(repo_full_name: str) -> bool:
             req.add_header("User-Agent", "DevopsIntelligence-App")
             
             zip_path = os.path.join(tmpdir, "repo.zip")
+            import shutil
             try:
                 with urllib.request.urlopen(req) as response, open(zip_path, "wb") as out_file:
-                    out_file.write(response.read())
+                    shutil.copyfileobj(response, out_file)
             except urllib.error.HTTPError as e:
                 logger.error(f"GitHub API Error downloading repo: {e}")
                 return False
@@ -238,6 +239,11 @@ def _clone_and_index_github_repo(repo_full_name: str) -> bool:
             if not chunks:
                 logger.warning(f"No chunks found in {repo_full_name}")
                 return False
+                
+            # ENFORCE HARD MEMORY LIMIT FOR FREE TIER (max 2000 chunks = ~15MB RAM)
+            if len(chunks) > 2000:
+                logger.warning(f"Project size exceeded chunk limit. Truncating {len(chunks)} chunks to 2000.")
+                chunks = chunks[:2000]
                 
             texts = []
             for chunk in chunks:
@@ -271,6 +277,11 @@ def index_repository(repo_path: str) -> Dict[str, Any]:
 
     if not chunks:
         return {"status": "no_chunks_found", "chunks": 0}
+
+    # ENFORCE HARD MEMORY LIMIT FOR FREE TIER (max 2000 chunks = ~15MB RAM)
+    if len(chunks) > 2000:
+        logger.warning(f"Project size exceeded chunk limit. Truncating {len(chunks)} chunks to 2000.")
+        chunks = chunks[:2000]
 
     # Build text representations for embedding
     texts = []
