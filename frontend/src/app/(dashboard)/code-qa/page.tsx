@@ -151,10 +151,14 @@ export default function CodeQAPage() {
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error) {
       console.error("QA error:", error);
+      
+      // We grab apiUrl again just to be safe for the error message
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      
       setMessages((prev) => [...prev, {
         id: `m${Date.now() + 1}`,
         role: "assistant",
-        content: "Sorry, I ran into an error connecting to the FastAPI backend."
+        content: `Sorry, I ran into an error connecting to the FastAPI backend at **${apiUrl}**. Please check your Vercel Environment Variables.`
       }]);
     } finally {
       setIsTyping(false);

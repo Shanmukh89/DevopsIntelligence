@@ -213,7 +213,11 @@ def _clone_and_index_github_repo(repo_full_name: str) -> bool:
             else:
                 clone_url = f"https://github.com/{repo_full_name}.git"
             
-            subprocess.run(["git", "clone", "--depth", "1", clone_url, tmpdir], check=True, capture_output=True)
+            # Prevent git from hanging on credential prompts
+            env = dict(os.environ)
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            
+            subprocess.run(["git", "clone", "--depth", "1", clone_url, tmpdir], check=True, capture_output=True, env=env)
             
             chunks = chunk_repository(tmpdir)
             if not chunks:
