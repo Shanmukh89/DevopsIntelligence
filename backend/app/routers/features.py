@@ -17,6 +17,7 @@ class SqlOptimizeRequest(BaseModel):
 class QARequest(BaseModel):
     question: str
     repository_id: str
+    repo_full_name: Optional[str] = None
 
 class CloneDetectorRequest(BaseModel):
     repo_path: Optional[str] = None
@@ -61,7 +62,7 @@ async def codebase_qa(req: QARequest):
         repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
     try:
-        result = rag_service.answer_question(req.question, repo_path=repo_path)
+        result = rag_service.answer_question(req.question, repo_path=repo_path, repo_full_name=req.repo_full_name)
         return result
     except Exception as e:
         logger.error(f"RAG Q&A failed: {e}")

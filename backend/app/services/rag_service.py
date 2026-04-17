@@ -198,17 +198,53 @@ def _get_embeddings(texts: List[str]) -> List[List[float]]:
 
 # ── In-Memory Vector Store (fallback when pgvector is unavailable) ─────
 
-_index: List[Dict[str, Any]] = []
-_vectors = None
-_indexed = False
+_indices: Dict[str, Dict[str, Any]] = {}
 
+def _clone_and_index_github_repo(repo_full_name: str) -> bool:
+    import subprocess
+    import tempfile
+    
+    logger.info(f"Auto-cloning and indexing GitHub repository: {repo_full_name}")
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token = settings.GITHUB_TOKEN
+            if token:
+                clone_url = f"https://oauth2:{token}@github.com/{repo_full_name}.git"
+            else:
+                clone_url = f"https://github.com/{repo_full_name}.git"
+            
+            subprocess.run(["git", "clone", "--depth", "1", clone_url, tmpdir], check=True, capture_output=True)
+            
+            chunks = chunk_repository(tmpdir)
+            if not chunks:
+                logger.warning(f"No chunks found in {repo_full_name}")
+                return False
+                
+            texts = []
+            for chunk in chunks:
+                text = f"File: {chunk['file']}\nType: {chunk['type']}\n"
+                if chunk.get("name"):
+                    text += f"Name: {chunk['name']}\n"
+                text += f"Lines: {chunk['start_line']}-{chunk['end_line']}\n\n{chunk['content']}"
+                texts.append(text[:8000])
+
+            embeddings = _get_embeddings(texts)
+            import numpy as np
+            vectors = np.array(embeddings, dtype=np.float32)
+            
+            _indices[repo_full_name] = {"index": chunks, "vectors": vectors}
+            logger.info(f"Successfully indexed {repo_full_name}")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to clone and index {repo_full_name}: {e}")
+        return False
 
 def index_repository(repo_path: str) -> Dict[str, Any]:
     """
     Index a repository: chunk → embed → store in memory.
     In production, these would go into Supabase pgvector.
     """
-    global _index, _vectors, _indexed
+    global _indices
 
     logger.info(f"Indexing repository at {repo_path} for RAG …")
     chunks = chunk_repository(repo_path)
@@ -231,22 +267,21 @@ def index_repository(repo_path: str) -> Dict[str, Any]:
     embeddings = _get_embeddings(texts)
 
     import numpy as np
-    _vectors = np.array(embeddings, dtype=np.float32)
-    _index = chunks
-    _indexed = True
+    vectors = np.array(embeddings, dtype=np.float32)
+    _indices[repo_path] = {"index": chunks, "vectors": vectors}
 
-    logger.info(f"RAG index built: {len(chunks)} chunks, {_vectors.shape[1]}-dim embeddings")
-    return {"status": "indexed", "chunks": len(chunks), "dimensions": _vectors.shape[1]}
+    logger.info(f"RAG index built: {len(chunks)} chunks, {vectors.shape[1]}-dim embeddings")
+    return {"status": "indexed", "chunks": len(chunks), "dimensions": vectors.shape[1]}
 
 
-def answer_question(question: str, repo_path: Optional[str] = None) -> Dict[str, Any]:
+def answer_question(question: str, repo_path: Optional[str] = None, repo_full_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Answer a codebase question using RAG:
       1. Embed the question
       2. Similarity search against indexed chunks
       3. Feed top chunks + question to GPT-4o
     """
-    global _index, _vectors, _indexed
+    global _indices
 
     if not settings.OPENAI_API_KEY:
         return {
@@ -254,16 +289,24 @@ def answer_question(question: str, repo_path: Optional[str] = None) -> Dict[str,
             "sources": [],
         }
 
-    # Auto-index if not already done
-    if not _indexed and repo_path:
-        index_repository(repo_path)
-    elif not _indexed:
-        # Try indexing the project root
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        if os.path.exists(project_root):
-            index_repository(project_root)
+    # Determine which key to use for the index lookup
+    index_key = repo_full_name if repo_full_name else repo_path
 
-    if not _indexed or _vectors is None or len(_index) == 0:
+    if index_key and index_key not in _indices:
+        if repo_full_name:
+            _clone_and_index_github_repo(repo_full_name)
+        elif repo_path and os.path.exists(repo_path):
+            index_repository(repo_path)
+    
+    # If no index is still available, try default fallback
+    if not index_key or index_key not in _indices:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        if project_root not in _indices and os.path.exists(project_root):
+             index_repository(project_root)
+        index_key = project_root
+
+    # Check if we successfully have vectors to query
+    if index_key not in _indices or _indices[index_key]["vectors"] is None or len(_indices[index_key]["index"]) == 0:
         return {
             "answer": "No code has been indexed yet. Please run indexing first.",
             "sources": [],
@@ -276,6 +319,8 @@ def answer_question(question: str, repo_path: Optional[str] = None) -> Dict[str,
     q_embedding = np.array(_get_embeddings([question])[0], dtype=np.float32).reshape(1, -1)
 
     # Cosine similarity search
+    _vectors = _indices[index_key]["vectors"]
+    _index = _indices[index_key]["index"]
     similarities = cosine_similarity(q_embedding, _vectors)[0]
     top_k = 5
     top_indices = np.argsort(similarities)[-top_k:][::-1]

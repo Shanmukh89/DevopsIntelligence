@@ -122,11 +122,12 @@ export default function CodeQAPage() {
     setIsTyping(true);
 
     try {
+      const repoName = repositories.find(r => r.id === selectedRepoId)?.full_name || null;
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const response = await fetch(`${apiUrl}/features/code-qa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmedInput, repository_id: selectedRepoId })
+        body: JSON.stringify({ question: trimmedInput, repository_id: selectedRepoId, repo_full_name: repoName })
       });
       
       const data = await response.json();
