@@ -9,7 +9,7 @@ const safeMockRepos = [
 ];
 
 export default function Topbar() {
-  const [selectedRepo, setSelectedRepo] = useState(safeMockRepos[0]);
+  const [selectedRepo, setSelectedRepo] = useState(safeMockRepos[0]!);
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
 
