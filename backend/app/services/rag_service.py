@@ -201,25 +201,40 @@ def _get_embeddings(texts: List[str]) -> List[List[float]]:
 _indices: Dict[str, Dict[str, Any]] = {}
 
 def _clone_and_index_github_repo(repo_full_name: str) -> bool:
-    import subprocess
     import tempfile
+    import zipfile
+    import urllib.request
+    import urllib.error
     
-    logger.info(f"Auto-cloning and indexing GitHub repository: {repo_full_name}")
+    logger.info(f"Auto-downloading and indexing GitHub repository: {repo_full_name}")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             token = settings.GITHUB_TOKEN
+            # Use the GitHub API to get the default branch zipball
+            api_url = f"https://api.github.com/repos/{repo_full_name}/zipball"
+            
+            req = urllib.request.Request(api_url)
             if token:
-                clone_url = f"https://oauth2:{token}@github.com/{repo_full_name}.git"
-            else:
-                clone_url = f"https://github.com/{repo_full_name}.git"
+                req.add_header("Authorization", f"Bearer {token}")
+            req.add_header("Accept", "application/vnd.github.v3+json")
+            req.add_header("User-Agent", "DevopsIntelligence-App")
             
-            # Prevent git from hanging on credential prompts
-            env = dict(os.environ)
-            env["GIT_TERMINAL_PROMPT"] = "0"
+            zip_path = os.path.join(tmpdir, "repo.zip")
+            try:
+                with urllib.request.urlopen(req) as response, open(zip_path, "wb") as out_file:
+                    out_file.write(response.read())
+            except urllib.error.HTTPError as e:
+                logger.error(f"GitHub API Error downloading repo: {e}")
+                return False
+                
+            # Extract the zip file
+            extract_dir = os.path.join(tmpdir, "extracted")
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(extract_dir)
             
-            subprocess.run(["git", "clone", "--depth", "1", clone_url, tmpdir], check=True, capture_output=True, env=env)
-            
-            chunks = chunk_repository(tmpdir)
+            # The root of the zip usually contains a single folder like Owner-Repo-sha
+            # chunk_repository will naturally walk down through it
+            chunks = chunk_repository(extract_dir)
             if not chunks:
                 logger.warning(f"No chunks found in {repo_full_name}")
                 return False
@@ -240,7 +255,7 @@ def _clone_and_index_github_repo(repo_full_name: str) -> bool:
             logger.info(f"Successfully indexed {repo_full_name}")
             return True
     except Exception as e:
-        logger.error(f"Failed to clone and index {repo_full_name}: {e}")
+        logger.error(f"Failed to download and index {repo_full_name}: {e}")
         return False
 
 def index_repository(repo_path: str) -> Dict[str, Any]:
