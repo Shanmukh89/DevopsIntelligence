@@ -48,7 +48,7 @@ async def optimize_sql(req: SqlOptimizeRequest):
 # ── Code Q&A (RAG Pipeline) ───────────────────────────────────────────
 
 @router.post("/code-qa")
-async def codebase_qa(req: QARequest):
+def codebase_qa(req: QARequest):
     """
     Answers codebase questions using RAG:
     Chunks code → embeds with OpenAI → similarity search → GPT-4o answer.

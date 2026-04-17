@@ -175,7 +175,7 @@ def _get_embeddings(texts: List[str]) -> List[List[float]]:
 
     # OpenAI embedding API supports batching up to 2048 inputs
     all_embeddings = []
-    batch_size = 64
+    batch_size = 2048
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         payload = {
@@ -186,7 +186,7 @@ def _get_embeddings(texts: List[str]) -> List[List[float]]:
             "https://api.openai.com/v1/embeddings",
             headers=headers,
             json=payload,
-            timeout=60.0,
+            timeout=120.0,
         )
         resp.raise_for_status()
         data = resp.json()
