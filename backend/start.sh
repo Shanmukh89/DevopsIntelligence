@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start the Celery background worker as a background process (&)
-celery -A celery_app worker --loglevel=info &
+celery -A celery_app worker --concurrency=1 --loglevel=info &
 
 # Start the FastAPI web service in the foreground (Render passes $PORT dynamically)
 PORT="${PORT:-8000}"
